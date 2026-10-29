@@ -1,0 +1,86 @@
+name: build
+
+# Builds only when a release tag is pushed (vX.Y.Z). No builds on ordinary pushes or PRs.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Names match the architectures the Aether OpenWrt client supports.
+          - { goarch: amd64, goarm: '',  asset: aether-wg-relay-linux-x86_64 }
+          - { goarch: arm64, goarm: '',  asset: aether-wg-relay-linux-aarch64 }
+          - { goarch: arm,   goarm: '7', asset: aether-wg-relay-linux-armv7 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build (static, musl-compatible, no cgo)
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+            -o "dist/${{ matrix.asset }}" ./cmd/aether-wg-relay
+          ls -l dist
+
+      - name: Smoke test (x86_64 only)
+        if: matrix.goarch == 'amd64'
+        run: ./dist/${{ matrix.asset }} -version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    # Publish the three binaries plus SHA256SUMS.
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          chmod 755 aether-wg-relay-linux-*
+          sha256sum aether-wg-relay-linux-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/aether-wg-relay-linux-x86_64
+            dist/aether-wg-relay-linux-aarch64
+            dist/aether-wg-relay-linux-armv7
+            dist/SHA256SUMS
+          generate_release_notes: true
