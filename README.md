@@ -62,8 +62,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
   go build -trimpath -ldflags "-s -w -X main.version=v0.1.0" -o aether-wg-relay ./cmd/aether-wg-relay
 ```
 
-Before pushing to GitHub, replace `OWNER` in `go.mod`'s module path (it is only a module
-name, nothing imports it).
+The Go module path is `github.com/moein8668-git/aether-wg-relay`.
 
 `udp_assoc_test.py` checks that an Aether SOCKS port supports UDP ASSOCIATE
 (`python udp_assoc_test.py 1819`), independent of WireGuard.

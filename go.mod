@@ -1,4 +1,4 @@
-module github.com/OWNER/aether-wg-relay
+module github.com/moein8668-git/aether-wg-relay
 
 go 1.24.4
 
